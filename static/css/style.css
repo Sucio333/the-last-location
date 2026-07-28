@@ -163,9 +163,17 @@ body {
     overflow: visible;
 }
 
+/* Mobile/Touch: Deshabilita electric-border en el título grande (muy costoso en iOS/Android)
+   Mantiene solo gooey filter para suavidad sin overhead de animación SVG costosa */
 body.is-touch .gooey-wrapper {
-    /* Mantiene los filtros gooey y electric-border en touch/mobile, con drop-shadow adicional */
-    filter: url(#gooey) url(#electric-border) drop-shadow(0 0 12px rgba(255,255,255,0.14));
+    filter: url(#gooey) drop-shadow(0 0 12px rgba(255,255,255,0.14));
+}
+
+/* Media query como respaldo si body.is-touch no se aplica por timing */
+@media (max-width: 768px) {
+    .gooey-wrapper {
+        filter: url(#gooey) drop-shadow(0 0 12px rgba(255,255,255,0.14));
+    }
 }
 
 .gooey-text {
