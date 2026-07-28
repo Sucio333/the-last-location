@@ -12,9 +12,19 @@
 </head>
 <body>
 
-<!-- Filtro SVG gooey -->
+<!-- Filtro SVG gooey — dos versiones para transición suave -->
 <svg class="gooey-filter">
     <defs>
+        <!-- Versión "light" del filtro gooey (blur inicial más suave) -->
+        <filter id="gooey-light" x="-20%" y="-50%" width="140%" height="200%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="1.2" result="blur"/>
+            <feColorMatrix in="blur" mode="matrix"
+                values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 16 -8"
+                result="gooey"/>
+            <feComposite in="SourceGraphic" in2="gooey" operator="atop"/>
+        </filter>
+
+        <!-- Versión completa del filtro gooey (blur final, efecto gooey completo) -->
         <filter id="gooey" x="-20%" y="-50%" width="140%" height="200%">
             <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur"/>
             <feColorMatrix in="blur" mode="matrix"
@@ -179,12 +189,12 @@
 
 </div><!-- /overlay -->
 
-<!-- Detecta dispositivos touch temprano (antes de animaciones) -->
+<!-- Detecta dispositivos touch temprano (antes de animaciones) + Inicia transición del filtro gooey -->
 <script>
 (function() {
+    // Detección de touch device (usa pointer: coarse)
     if (window.matchMedia('(pointer: coarse)').matches) {
         document.documentElement.classList.add('is-touch');
-        // Espera a que body esté disponible, luego aplica clase
         if (document.body) {
             document.body.classList.add('is-touch');
         } else {
@@ -192,6 +202,22 @@
                 document.body.classList.add('is-touch');
             });
         }
+    }
+
+    // Inicia la transición suave del filtro gooey después de un pequeño delay
+    // (da tiempo para que el SVG se renderice y esté listo)
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            // Pequeño delay (60ms) para asegurar que los filtros SVG estén listos
+            requestAnimationFrame(() => {
+                document.documentElement.classList.add('gooey-ready');
+            });
+        });
+    } else {
+        // Si el documento ya está cargado (script ejecuta tarde)
+        requestAnimationFrame(() => {
+            document.documentElement.classList.add('gooey-ready');
+        });
     }
 })();
 </script>

@@ -159,19 +159,41 @@ body {
     max-width: 100%;
     min-width: 0;
     text-align: center;
-    filter: url(#gooey) url(#electric-border);
+    /* Inicia con filtro "light" (blur más suave) para una transición visual suave */
+    filter: url(#gooey-light) url(#electric-border);
     overflow: visible;
+    /* Transición suave para el cambio del filtro gooey — fundido gradual de bordes
+       cuadrados a efecto gooey completo sin saltos abruptos. Duration: 0.8s */
+    transition: filter 0.8s cubic-bezier(0.4, 0.0, 0.2, 1);
+    will-change: filter;
+}
+
+/* Una vez que el documento está listo, cambia al filtro gooey completo (con transición suave) */
+html.gooey-ready .gooey-wrapper {
+    filter: url(#gooey) url(#electric-border);
 }
 
 /* Mobile/Touch: Deshabilita electric-border en el título grande (muy costoso en iOS/Android)
-   Mantiene solo gooey filter para suavidad sin overhead de animación SVG costosa */
+   Mantiene solo gooey filter (light inicialmente) con transición suave a gooey completo */
 body.is-touch .gooey-wrapper {
+    filter: url(#gooey-light) drop-shadow(0 0 12px rgba(255,255,255,0.14));
+}
+
+/* Mobile/Touch: Después de que el documento está listo, transiciona a gooey completo */
+html.gooey-ready body.is-touch .gooey-wrapper {
     filter: url(#gooey) drop-shadow(0 0 12px rgba(255,255,255,0.14));
 }
 
 /* Media query como respaldo si body.is-touch no se aplica por timing */
 @media (max-width: 768px) {
     .gooey-wrapper {
+        filter: url(#gooey-light) drop-shadow(0 0 12px rgba(255,255,255,0.14));
+    }
+}
+
+/* Media query — después de que el documento está listo */
+@media (max-width: 768px) {
+    html.gooey-ready .gooey-wrapper {
         filter: url(#gooey) drop-shadow(0 0 12px rgba(255,255,255,0.14));
     }
 }
