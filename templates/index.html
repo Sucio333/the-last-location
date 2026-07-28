@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Last Location</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<!-- Filtro SVG gooey -->
+<svg class="gooey-filter">
+    <defs>
+        <filter id="gooey" x="-20%" y="-50%" width="140%" height="200%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur"/>
+            <feColorMatrix in="blur" mode="matrix"
+                values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 32 -15"
+                result="gooey"/>
+            <feComposite in="SourceGraphic" in2="gooey" operator="atop"/>
+        </filter>
+    </defs>
+</svg>
+
+<!-- Filtro SVG para borde eléctrico del badge EN VIVO -->
+<svg class="electric-border-filter" aria-hidden="true">
+    <defs>
+        <filter id="electric-border" x="-60%" y="-60%" width="220%" height="220%" filterUnits="objectBoundingBox">
+            <!-- Ruido base para la distorsión eléctrica -->
+            <feTurbulence type="fractalNoise" baseFrequency="0.02 0.04" numOctaves="2" seed="2" result="noise">
+                <animate attributeName="baseFrequency"
+                    values="0.03 0.04;0.015 0.05;0.02 0.03;0.025 0.045"
+                    dur="2.5s"
+                    repeatCount="indefinite" />
+            </feTurbulence>
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="3" xChannelSelector="R" yChannelSelector="G" result="distorted"/>
+            <!-- Brillo verde alrededor del contorno -->
+            <feMorphology in="SourceAlpha" operator="dilate" radius="3" result="thick"/>
+            <feGaussianBlur in="thick" stdDeviation="3" result="glow"/>
+            <feFlood flood-color="#05FF04" flood-opacity="0.7" result="glowColor"/>
+            <feComposite in="glowColor" in2="glow" operator="in" result="greenGlow"/>
+            <feMerge>
+                <feMergeNode in="greenGlow"/>
+                <feMergeNode in="distorted"/>
+            </feMerge>
+        </filter>
+    </defs>
+</svg>
+
+<!-- Fondo WebGL líquido -->
+<canvas id="liquid-canvas"></canvas>
+
+<!-- Heximage: video decorativo con textura hexagonal ASCII/glitch -->
+<!-- Comentarios en español: este elemento se coloca sobre el shader (canvas)
+     pero detrás del contenido principal; usa mix-blend-mode para fusionarse
+     con el fondo líquido. -->
+<video class="heximage-layer" poster="https://assets.21st.dev/ascii-recipes/thumbnails/user_3GTmm8jNoQIxVVDZmyng4bN3uFj/f1e9ca31-92ab-465d-a08f-41a0393623ce.webp" autoplay loop muted playsinline aria-hidden="true">
+    <source src="https://assets.21st.dev/ascii-recipes/videos/user_3GTmm8jNoQIxVVDZmyng4bN3uFj/38f24872-2e1b-4582-bcf0-375dceb1e481.mp4" type="video/mp4">
+    <!-- Si el navegador no soporta <video>, no se muestra nada extra -->
+</video>
+
+<div class="overlay">
+
+<div style="display:flex; justify-content:center; margin-bottom:1rem;">
+    <img id="station-logo"
+         src="{{ url_for('static', filename='assets/logo.png') }}"
+         alt="The Last Location">
+</div>
+
+    <!-- HEADER -->
+    <div class="header">
+        <nav class="nav-links">
+            <a class="nav-link active" href="{{ url_for('index') }}">En Vivo</a>
+        </nav>
+    </div>
+
+    <!-- TÍTULO GOOEY -->
+    <div class="hero-title">
+        <div class="gooey-wrapper" id="gooey-wrapper">
+            <!-- Los elementos .gooey-text los inyecta gooey.js desde CFG.morphTexts -->
+        </div>
+    </div>
+
+    <!-- Panel del reproductor -->
+    <div class="player-panel tll-player">
+        {% if en_vivo %}
+            <!-- Reproductor embebido de Twitch cuando el canal está en vivo -->
+            <div class="player-shell player-shell--live">
+                <div class="player-topbar">
+                    <span class="live-pill">EN VIVO</span>
+                    <span class="player-caption">Streaming directo en Twitch</span>
+                </div>
+                <div class="player-frame">
+                    <iframe
+                        src="https://player.twitch.tv/?channel={{ twitch_channel }}&parent=localhost&parent=127.0.0.1"
+                        width="100%"
+                        height="100%"
+                        frameborder="0"
+                        allowfullscreen="true"
+                        scrolling="no">
+                    </iframe>
+                </div>
+            </div>
+        {% else %}
+            <!-- Fuera de línea: mostramos el último set subido a SoundCloud -->
+            <div class="player-shell player-shell--soundcloud" data-soundcloud-player>
+                <div class="player-topbar">
+                    <span class="live-pill live-pill--radio">RADIO</span>
+                    <span class="player-caption">Último set disponible en SoundCloud</span>
+                </div>
+
+                <div class="soundcloud-shell">
+                    <div class="soundcloud-shell__header">
+                        <div class="soundcloud-shell__title" id="sc-playlist-label">SUCIO333 / 333A1</div>
+                        <div class="soundcloud-shell__status" id="sc-status">Esperando el reproductor…</div>
+                    </div>
+
+                    <div class="soundcloud-shell__embed">
+                        <iframe
+                            id="soundcloud-iframe"
+                            width="100%"
+                            height="100%"
+                            scrolling="no"
+                            frameborder="no"
+                            allow="autoplay"
+                            src="https://w.soundcloud.com/player/?url=https%3A//soundcloud.com/sucio333/sets/333a1&color=%2305FF04&auto_play=false&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=false&visual=false">
+                        </iframe>
+                    </div>
+
+                    <div class="soundcloud-shell__controls">
+                        <button type="button" class="soundcloud-button soundcloud-button--accent" id="sc-prev" aria-label="Pista anterior">⏮</button>
+                        <div class="soundcloud-controls__group">
+                            <button type="button" class="soundcloud-button soundcloud-button--secondary" id="sc-back" aria-label="Retroceder 15 segundos">«</button>
+                            <button type="button" class="soundcloud-button" id="sc-toggle" aria-label="Reproducir o pausar">▶</button>
+                            <button type="button" class="soundcloud-button soundcloud-button--secondary" id="sc-forward" aria-label="Adelantar 15 segundos">»</button>
+                        </div>
+                        <button type="button" class="soundcloud-button soundcloud-button--accent" id="sc-next" aria-label="Siguiente pista">⏭</button>
+                        <div class="soundcloud-volume-controls">
+                            <button type="button" class="soundcloud-button soundcloud-button--secondary" id="sc-mute" aria-label="Silenciar">🔊</button>
+                            <input id="sc-volume" class="soundcloud-volume-slider" type="range" min="0" max="100" value="100" aria-label="Volumen">
+                            <span id="sc-volume-value" class="soundcloud-volume-value">100</span>
+                        </div>
+                        <div class="soundcloud-meta">
+                            <div class="soundcloud-meta__title" id="sc-title">Cargando pista…</div>
+                            <div class="soundcloud-meta__timeline">
+                                <span id="sc-current-time">00:00</span>
+                                <div class="soundcloud-progress">
+                                    <div class="soundcloud-progress__bar" id="sc-progress-fill"></div>
+                                </div>
+                                <span id="sc-duration">00:00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- TEXTO CIRCULAR DECORATIVO -->
+    <div class="circular-text-wrap">
+        <svg class="circular-text" viewBox="0 0 280 280" aria-hidden="true">
+            <defs>
+                <path id="circlePath" d="" />
+            </defs>
+            <text class="circular-text__text">
+                <textPath href="#circlePath" startOffset="50%" text-anchor="middle">
+                    THE LAST LOCATION - CHILE - 2024 - SUDAMERICA • THE LAST LOCATION - CHILE - 2024 - SUDAMERICA • THE LAST LOCATION - CHILE - 2024 - SUDAMERICA • THE LAST LOCATION - CHILE - 2024 - SUDAMERICA
+                </textPath>
+            </text>
+        </svg>
+        <div class="circular-text-center">
+            <img src="{{ url_for('static', filename='assets/logo.png') }}" alt="Logo The Last Location">
+        </div>
+    </div>
+
+</div><!-- /overlay -->
+
+<!-- JS: orden importa — config primero, luego módulos -->
+<script src="{{ url_for('static', filename='js/config.js') }}"></script>
+<script src="https://w.soundcloud.com/player/api.js"></script>
+<script src="{{ url_for('static', filename='js/matrix-text.js') }}"></script>
+<script src="{{ url_for('static', filename='js/soundcloud-player.js') }}"></script>
+<script src="{{ url_for('static', filename='js/shader.js') }}"></script>
+<script src="{{ url_for('static', filename='js/circular-text.js') }}"></script>
+<script src="{{ url_for('static', filename='js/gooey.js') }}"></script>
+
+</body>
+</html>

@@ -1,0 +1,853 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+    min-height: 100%;
+    margin: 0;
+    padding: 0;
+    background: #0a0a0a;
+    color: white;
+}
+
+body {
+    overflow-x: hidden;
+    overflow-y: hidden;
+    width: 100%;
+    min-height: 100vh;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+/* ── FONDO WEBGL ── */
+#liquid-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+}
+
+/* ── OVERLAY ── */
+.overlay {
+    position: fixed;
+    inset: 0;
+    /* Elevado por encima del shader y del video decorativo */
+    z-index: 2;
+    background: radial-gradient(ellipse at center, rgba(89,89,84,0.05) 0%, rgba(34,187,10,0.55) 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    /* Más espacio superior para centrar visualmente el logo */
+    padding: 4.25rem 0 1.2rem;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* ── FILTRO GOOEY (invisible, sólo SVG) ── */
+.gooey-filter {
+    position: absolute;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+/* ── LOGO GIRATORIO ── */
+#station-logo {
+    width: 100px;
+    height: 100px;
+    object-fit: contain;
+    animation: spin 8s linear infinite;
+    filter: url(#electric-border) drop-shadow(0 0 18px rgba(140, 255, 80, 0.55));
+    /* Posición absoluta en esquina superior para no tapar el contenido principal */
+    position: absolute;
+    top: 1.8rem;
+    left: 1.8rem;
+    /* Desktop: esquina izquierda. Mobile: centrado via media query */
+    z-index: 3;
+    pointer-events: none;
+    will-change: transform;
+    backface-visibility: hidden;
+}
+
+/* ── CAPA HEXIMAGE: textura hexagonal ASCII/GLITCH (video) ── */
+/* Comentarios en español: colocamos la capa de heximage sobre el canvas
+   (shader) pero debajo de la interfaz principal (.overlay). Se usa
+   mix-blend-mode para integrar el negro y lograr el efecto deseado. */
+.heximage-layer {
+    position: fixed;
+    /* esquina superior-derecha por defecto, fuera del reproductor */
+    top: 10%;
+    right: 6%;
+    width: 360px;
+    height: auto;
+    opacity: 0.72; /* entre 0.6 y 0.8 */
+    mix-blend-mode: screen; /* probar lighten/plus-lighter si es necesario */
+    /* no intercepta eventos del ratón */
+    pointer-events: none;
+    z-index: 1; /* debajo de la .overlay (z-index:2) */
+    filter: contrast(1.05) saturate(1.05) hue-rotate(0deg);
+}
+
+/* Responsive: reducir tamaño o esconder en pantallas pequeñas */
+@media (max-width: 900px) {
+    .heximage-layer {
+        width: 260px;
+        top: 8%;
+        right: 4%;
+        opacity: 0.66;
+    }
+}
+
+@media (max-width: 720px) {
+    /* En mobile pequeño se oculta para no interferir con el reproductor */
+    .heximage-layer {
+        display: none;
+    }
+}
+
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+/* ── NAV ── */
+.nav-links {
+    display: flex;
+    gap: 0.6rem;
+}
+
+.nav-link {
+    padding: 0.3rem 0.8rem;
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 100px;
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.6);
+    text-decoration: none;
+    background: rgba(255,255,255,0.05);
+    backdrop-filter: blur(8px);
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.nav-link.active {
+    font-family: 'JetBrains Mono', monospace; /* JetBrains Mono puntual para EN VIVO */
+}
+
+.nav-link:hover,
+.nav-link.active {
+    background: rgba(255,255,255,0.15);
+    color: white;
+    border-color: rgba(255,255,255,0.5);
+}
+
+/* ── HERO TITLE ── */
+.hero-title {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    margin: 0 auto 1.2rem;
+}
+
+/* ── GOOEY TEXTO ── */
+.gooey-wrapper {
+    position: relative;
+    display: block;
+    width: min(100%, 900px);
+    max-width: 100%;
+    min-width: 0;
+    text-align: center;
+    filter: url(#gooey) url(#electric-border);
+    overflow: visible;
+}
+
+body.is-touch .gooey-wrapper {
+    /* Mantiene los filtros gooey y electric-border en touch/mobile, con drop-shadow adicional */
+    filter: url(#gooey) url(#electric-border) drop-shadow(0 0 12px rgba(255,255,255,0.14));
+}
+
+.gooey-text {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    display: block;
+    width: max-content;
+    font-size: clamp(1.8rem, 5.5vw, 4.5rem);
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    font-family: 'Archivo Black', 'Arial Black', sans-serif;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: #ffffff;
+    paint-order: fill;
+    user-select: none;
+    text-shadow:
+        0 0 18px rgba(255,255,255,0.22),
+        0 0 36px rgba(255,255,255,0.12);
+    transition: opacity 0.05s;
+}
+
+/* Spacer para que el wrapper tenga altura */
+.gooey-wrapper::after {
+    content: 'THE LAST LOCATION';
+    font-size: clamp(2.2rem, 6.2vw, 5rem);
+    font-weight: 900;
+    letter-spacing: 0.14em;
+    font-family: 'Orbitron', sans-serif;
+    visibility: hidden;
+    white-space: nowrap;
+}
+
+body.is-touch .electric-border-filter {
+    display: none;
+}
+
+body.is-touch .player-panel.tll-player .player-topbar .live-pill,
+body.is-touch .circular-text-center img,
+body.is-touch .circular-text {
+    filter: drop-shadow(0 0 14px rgba(5, 255, 4, 0.45));
+}
+
+/* ── PANEL DEL REPRODUCTOR ── */
+.player-panel {
+    width: min(95vw, 900px);
+    max-width: 95vw;
+    min-width: 0;
+    height: auto;
+    margin-top: 1.5rem;
+    padding: 1rem;
+    border: 2px solid #05FF04;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(12px);
+    box-shadow:
+        0 0 20px rgba(5, 255, 4, 0.25),
+        inset 0 0 20px rgba(5, 255, 4, 0.05);
+}
+
+/* ── TIPOGRAFÍA DEL BLOQUE DEL REPRODUCTOR ── */
+.tll-player {
+    /* Aplicamos JetBrains Mono solo al reproductor, sin afectar el título LOCATION */
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.tll-player .soundcloud-button,
+.tll-player .player-caption,
+.tll-player .soundcloud-shell__title,
+.tll-player .soundcloud-shell__status,
+.tll-player .soundcloud-meta__title,
+.tll-player .soundcloud-meta__timeline,
+.tll-player #sc-current-time,
+.tll-player #sc-duration {
+    font-family: inherit;
+}
+
+.player-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.player-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.4rem 0.65rem;
+    border: 1px solid rgba(5, 255, 4, 0.3);
+    border-radius: 6px;
+    background: rgba(5, 255, 4, 0.07);
+}
+
+.live-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem 0.55rem;
+    border-radius: 999px;
+    background: #05FF04;
+    color: #000000;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-family: 'JetBrains Mono', monospace; /* Se aplica JetBrains Mono únicamente al badge EN VIVO */
+    position: relative;
+    z-index: 1;
+    filter: drop-shadow(0 0 14px rgba(5, 255, 4, 0.45));
+}
+
+.electric-border-filter {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+}
+
+.player-panel.tll-player .player-topbar .live-pill {
+    font-family: 'JetBrains Mono', monospace !important;
+    filter: url(#electric-border) drop-shadow(0 0 14px rgba(5, 255, 4, 0.45));
+}
+
+.live-pill--radio {
+    background: #585859;
+    color: #ffffff;
+}
+
+.player-caption {
+    color: rgba(255, 255, 255, 0.82);
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+}
+
+.player-frame {
+    position: relative;
+    width: 100%;
+    padding-bottom: 56.25%; /* Relación 16:9 */
+    height: 0;
+    overflow: hidden;
+    border-radius: 6px;
+}
+
+.player-frame iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 4px;
+}
+
+.soundcloud-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.8rem;
+    border: 1px solid rgba(88, 88, 89, 0.45);
+    border-radius: 6px;
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.7), rgba(5, 255, 4, 0.06));
+    box-shadow: inset 0 0 18px rgba(5, 255, 4, 0.05);
+}
+
+.circular-text-wrap {
+    width: 100%;
+    display: grid;
+    place-items: center;
+    margin: 1rem 0 2rem;
+    position: relative;
+}
+
+.circular-text__text {
+    fill: #ffffff;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.74rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+}
+
+.circular-text-center {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+}
+
+.circular-text-center img {
+    width: clamp(70px, 16vw, 120px);
+    height: auto;
+    border-radius: 999px;
+    filter: url(#electric-border) drop-shadow(0 0 14px rgba(5, 255, 4, 0.65));
+}
+
+.circular-text {
+    width: clamp(240px, 18vw, 320px);
+    height: auto;
+    overflow: visible;
+    transform-origin: center center;
+    animation: circular-spin 24s linear infinite;
+    filter: url(#electric-border) drop-shadow(0 0 16px rgba(5, 255, 4, 0.35));
+    will-change: transform;
+    backface-visibility: hidden;
+}
+
+@keyframes circular-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.soundcloud-shell__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.soundcloud-shell__title {
+    color: #05FF04;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.95rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.soundcloud-shell__status {
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 0.8rem;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+.soundcloud-shell__embed {
+    position: relative;
+    width: 100%;
+    padding-bottom: 30%;
+    min-height: 180px;
+    overflow: hidden;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.65);
+    min-width: 0;
+}
+
+.soundcloud-shell__embed iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+.soundcloud-shell__controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+    padding-top: 0.2rem;
+}
+
+.soundcloud-controls__group {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.soundcloud-volume-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.soundcloud-volume-controls .soundcloud-button {
+    width: 42px;
+    height: 42px;
+    border: 1px solid rgba(5, 255, 4, 0.45);
+    border-radius: 50%;
+    background: #05FF04;
+    color: #000000;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 0 12px rgba(5, 255, 4, 0.3);
+    font-family: 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+}
+
+.soundcloud-volume-slider {
+    width: 120px;
+    appearance: none;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(88, 88, 89, 0.4);
+    outline: none;
+    cursor: pointer;
+}
+
+.soundcloud-volume-slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #05FF04;
+    border: 2px solid #000000;
+    box-shadow: 0 0 12px rgba(5, 255, 4, 0.45);
+}
+
+.soundcloud-volume-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #05FF04;
+    border: 2px solid #000000;
+    box-shadow: 0 0 12px rgba(5, 255, 4, 0.45);
+}
+
+.soundcloud-volume-value {
+    min-width: 2.2rem;
+    color: #05FF04;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+.soundcloud-button {
+    width: 42px;
+    height: 42px;
+    border: 1px solid rgba(5, 255, 4, 0.45);
+    border-radius: 50%;
+    background: #05FF04;
+    color: #000000;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 0 12px rgba(5, 255, 4, 0.3);
+    font-family: 'Courier New', Courier, monospace;
+    text-transform: uppercase;
+}
+
+.soundcloud-button--secondary {
+    background: #585859;
+    color: #ffffff;
+    box-shadow: none;
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.soundcloud-button--accent {
+    background: #000000;
+    color: #05FF04;
+    border-color: rgba(5, 255, 4, 0.4);
+    box-shadow: inset 0 0 0 1px rgba(5, 255, 4, 0.2);
+}
+
+.soundcloud-button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.soundcloud-meta {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.soundcloud-meta__title {
+    color: #ffffff;
+    font-size: 0.95rem;
+    font-family: 'Courier New', Courier, monospace;
+    letter-spacing: 0.04em;
+}
+
+.soundcloud-meta__timeline {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.8rem;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+.soundcloud-progress {
+    flex: 1;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(88, 88, 89, 0.35);
+    overflow: hidden;
+}
+
+.soundcloud-progress__bar {
+    width: 0%;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #05FF04, #74ff76);
+    transition: width 0.2s ease-out;
+}
+
+.soundcloud-shell__controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.soundcloud-shell__controls > * {
+    min-width: 0;
+}
+
+.soundcloud-controls__group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    align-items: center;
+}
+
+.soundcloud-volume-controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.soundcloud-volume-controls .soundcloud-button {
+    width: 38px;
+    height: 38px;
+    font-size: 0.95rem;
+}
+
+.soundcloud-volume-slider {
+    width: 120px;
+    max-width: 100%;
+}
+
+.soundcloud-volume-value {
+    min-width: 2.2rem;
+}
+
+/* Mensaje cuando está fuera de línea */
+.offline-message {
+    width: 100%;
+    padding: 3rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    border-radius: 4px;
+    background: linear-gradient(135deg, rgba(5, 255, 4, 0.05), rgba(88, 88, 89, 0.1));
+}
+
+.offline-message p {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: clamp(1rem, 4vw, 1.5rem);
+    color: #05FF04;
+    letter-spacing: 0.05em;
+    text-align: center;
+    text-shadow: 0 0 12px rgba(5, 255, 4, 0.4);
+    margin: 0;
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+    /* Ajustes generales para tablet y mobile grande */
+    .overlay {
+        padding: 5rem 0.5rem 1rem;
+    }
+
+    .player-panel {
+        width: calc(100vw - 1rem);
+        max-width: 100%;
+        padding: 0.85rem;
+        border-width: 1px;
+    }
+
+    .player-topbar {
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.65rem;
+    }
+
+    .soundcloud-shell__header {
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .soundcloud-shell__controls {
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .soundcloud-controls__group {
+        width: auto;
+        justify-content: flex-start;
+    }
+
+    .soundcloud-volume-controls {
+        width: 100%;
+        justify-content: space-between;
+        gap: 0.4rem;
+    }
+
+    .soundcloud-volume-slider {
+        width: 100%;
+        max-width: none;
+        height: 5px;
+    }
+
+    .soundcloud-volume-slider::-webkit-slider-thumb {
+        width: 12px;
+        height: 12px;
+    }
+
+    .soundcloud-volume-slider::-moz-range-thumb {
+        width: 12px;
+        height: 12px;
+    }
+
+    .soundcloud-volume-controls .soundcloud-button {
+        width: 36px;
+        height: 36px;
+        font-size: 0.9rem;
+    }
+
+    .soundcloud-volume-value {
+        min-width: auto;
+        font-size: 0.75rem;
+    }
+
+    .soundcloud-meta {
+        width: 100%;
+    }
+
+    .soundcloud-meta__timeline {
+        flex-wrap: wrap;
+        gap: 0.35rem;
+    }
+
+    .soundcloud-shell__embed {
+        min-height: 160px;
+    }
+
+    .gooey-wrapper {
+        width: 100%;
+        max-width: 100%;
+        /* Mantiene los filtros gooey y electric-border en tablet */
+        filter: url(#gooey) url(#electric-border);
+    }
+
+    .circular-text {
+        width: clamp(220px, 26vw, 280px);
+    }
+
+    .circular-text__text {
+        font-size: 0.68rem;
+        letter-spacing: 0.12em;
+    }
+
+    #station-logo {
+        /* En tablet: usa position static para que el flexbox del padre lo centre naturalmente */
+        position: static;
+        width: 84px;
+        height: 84px;
+        /* Mantiene el efecto electric-border en todos los breakpoints */
+        filter: url(#electric-border) drop-shadow(0 0 10px rgba(140, 255, 80, 0.4));
+    }
+
+    .live-pill {
+        filter: drop-shadow(0 0 8px rgba(5, 255, 4, 0.35));
+    }
+
+    .circular-text-center img {
+        width: clamp(58px, 14vw, 90px);
+    }
+}
+
+@media (max-width: 480px) {
+    /* Ajustes extra para mobile chico 375px */
+    .overlay {
+        padding: 5.5rem 0.75rem 1rem;
+    }
+
+    .player-panel {
+        width: calc(100vw - 1rem);
+        padding: 0.75rem;
+        border-radius: 6px;
+    }
+
+    .player-topbar {
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .soundcloud-shell__header {
+        gap: 0.35rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .soundcloud-shell__embed {
+        min-height: 140px;
+    }
+
+    .soundcloud-volume-controls {
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.25rem;
+        /* Compactar el control de volumen para móvil muy pequeño */
+        max-width: 100%;
+    }
+
+    .soundcloud-volume-slider {
+        width: 90%;
+        max-width: 100px;
+        height: 3px;
+        /* Reduce la altura visual del slider en móvil */
+    }
+
+    .soundcloud-volume-slider::-webkit-slider-thumb {
+        width: 8px;
+        height: 8px;
+    }
+
+    .soundcloud-volume-slider::-moz-range-thumb {
+        width: 8px;
+        height: 8px;
+    }
+
+    .soundcloud-volume-value {
+        font-size: 0.65rem;
+        min-width: auto;
+        /* Más pequeño y proporcional al resto */
+    }
+
+    .soundcloud-volume-controls .soundcloud-button {
+        width: 28px;
+        height: 28px;
+        font-size: 0.8rem;
+        /* Botón mute más compacto */
+    }
+
+    .soundcloud-button,
+    .soundcloud-button--secondary,
+    .soundcloud-button--accent {
+        width: 36px;
+        height: 36px;
+        font-size: 0.92rem;
+    }
+
+    .circular-text {
+        width: clamp(180px, 45vw, 220px);
+        /* Más pequeño en móvil para evitar cortes en 375px */
+    }
+
+    .circular-text__text {
+        font-size: 0.58rem;
+        letter-spacing: 0.08em;
+        /* Reduce tanto fuente como espaciado para que quepa sin cortes */
+    }
+
+    .gooey-wrapper {
+        /* Mantiene los filtros gooey y electric-border en mobile, sin perder el drop-shadow */
+        filter: url(#gooey) url(#electric-border) drop-shadow(0 0 12px rgba(255,255,255,0.14));
+    }
+
+    .live-pill {
+        font-size: 0.65rem;
+        padding: 0.18rem 0.45rem;
+        filter: drop-shadow(0 0 8px rgba(5, 255, 4, 0.25));
+    }
+
+    #station-logo {
+        /* En mobile: usa position static para que el flexbox del padre lo centre naturalmente */
+        position: static;
+        width: 72px;
+        height: 72px;
+        /* Mantiene el efecto electric-border en todos los breakpoints */
+        filter: url(#electric-border) drop-shadow(0 0 10px rgba(140, 255, 80, 0.4));
+    }
+}
